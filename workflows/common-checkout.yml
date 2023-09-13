@@ -1,0 +1,8 @@
+name: Checkout Code
+
+steps:
+  - name: Checkout code
+    uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c
+    with:
+      token: ${{ env.GH_PAT }}
+      submodules: 'recursive'

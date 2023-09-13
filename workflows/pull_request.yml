@@ -1,0 +1,63 @@
+name: Check Code Quality
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+
+  secrets:
+    GH_PAT:
+      required: true
+
+    ENV_FILE:
+      description: Complete .env file
+      type: string
+
+jobs:
+  quality:
+    name: Lint, Format and Test the Code
+    runs-on: ubuntu-latest
+    env:
+      GH_PAT: ${{ secrets.GH_PAT }}
+    steps:
+      - name: Setup The Project
+        run: ./.github/workflows/common-setup.yml
+
+      - name: Create .env file
+        run: |
+          {
+            echo "${{ inputs.ENV_FILE }}"
+            echo APP_ENV=dev 
+          } >> .env
+
+      - name: Lint check
+        run: flutter analyze
+
+      - name: Ensure the Dart code is formatted correctly
+        run: dart format --set-exit-if-changed .
+
+      - name: Run Tests and Get coverage
+        run: flutter test --coverage
+
+      - name: Generage coverage report
+        run: |
+          sudo apt-get update
+          sudo apt-get install lcov
+
+          lcov --summary coverage/lcov.info
+          genhtml coverage/lcov.info --output=coverage
+
+  build-dev-android:
+    needs: quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Build Android apk for dev Environment
+        uses: ./.github/workflows/wc-build-manager.yml
+        with:
+          version: '1.0.0'
+          build-number: 1
+          environment: dev
+          flavor: debug
+          platforms: android
+          build-type: apk

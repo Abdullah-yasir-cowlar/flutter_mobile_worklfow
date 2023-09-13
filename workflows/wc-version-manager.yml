@@ -1,0 +1,76 @@
+name: Manage Version
+on:
+  workflow_call:
+    inputs:
+      semantic-version:
+        description: Target Plateform
+        required: false
+        default: patch # major, minor or patch
+        type: string
+
+      is-release-candidate:
+        description: Create a release Candidate?
+        required: false
+        default: false
+        type: boolean
+
+      push-tag:
+        description: Push new tag?
+        required: false
+        default: false
+        type: boolean
+
+    secrets:
+      GH_PAT:
+        required: true
+
+    env:
+      VERSION_FILE: 'pubspec.yml'
+
+jobs:
+  runs-on: ubuntu-latest
+  steps:
+    - name: Checkout in the Project
+      uses: ./.github/workflows/common-checkout.yml
+
+    - name: Read Version from File
+      run: |
+        source ./github/bash/helpers.sh
+        read_version_file $(env.VERSION_FILE) >> env.FILE_VERSION
+
+    - name: Generate Semantic Version
+      if: # if input version is empty
+      run: |
+        source ./github/bash/helpers.sh
+
+        current_version_components=$(extract_version_components "")
+        semantic_versions=$(generate_semantic_version current_version_components)
+
+        echo $semantic_versions >> env.SEMANTIC_VERSIONS
+
+    - name: Compare Versions
+      if:
+      run: |
+        source ./github/bash/helpers.sh
+
+        current_version_components=$(extract_version_components env.FILE_VERSION)
+        new_version_components=$(extract_version_components "3.7.6")
+
+        # throw error and exit, if version is not valid semantically
+        compare_versions $current_version_components $new_version_components
+
+    - name: Update Version File
+      run: |
+        source ./github/bash/helpers.sh
+
+        update_version_file $(env.FILE_VERSION) $(env.SEMANTIC_VERSIONS[0]) $(env.VERSION_FILE )
+
+    - name: Commit & Push Tag
+      if:
+      run: |
+        git add $(env.VERSION_FILE)
+        git commit -m "build: $(env.SEMANTIC_VERSIONS[0])"
+        git push
+
+        git tag -a $(env.SEMANTIC_VERSIONS[0]) -m "build: $(env.SEMANTIC_VERSIONS[0]) created by pipeline"
+        git push --tags

@@ -1,0 +1,102 @@
+name: Create App Builds Manually
+run-name: App Build ${{ inputs.plateform }} ${{ inputs.version }} (${{ inputs.stage }}) | release ${{ inputs.release }} | slack ${{ inputs.post-slack }}
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Test Version (v#.#.#+#)
+        required: false
+        type: string
+
+      semantic-version:
+        description: Target Plateform
+        required: false
+        default: apk
+        type: choice
+        options:
+          - current
+          - major
+          - minor
+          - patch
+          - test-version
+
+      is-rc:
+        description: Release Candidate?
+        required: false
+        default: false
+        type: boolean
+
+      environment:
+        description: Environment
+        required: false
+        default: stage
+        type: choice
+        options:
+          - dev
+          - stage
+          - all
+
+      plateform:
+        description: Target Plateform
+        required: false
+        default: android
+        type: choice
+        options:
+          - android
+          - ios
+
+      build-type:
+        description: Target Plateform
+        required: false
+        default: apk
+        type: choice
+        options:
+          - apk
+          - appbundle
+          - ios --no-codesign
+          - ipa
+
+      flavor:
+        description: Build Flavour
+        default: debug
+        type: choice
+        options:
+          - debug
+          - profile
+          - release
+
+      post-slack:
+        description: Post Release on Slack
+        default: false
+        type: boolean
+
+      post-registery:
+        description: Push the Bundle to a Registery
+        default: false
+        type: boolean
+
+jobs:
+  release-build:
+    runs-on: ubuntu-latest
+    if: inputs.semantic-version != "test-version"
+    steps:
+      - name: Manage Release Version
+        uses: ./.github/workflows/wc-version-manager.yml
+        with:
+          semantic-version: ${{ inputs.semantic-version }}
+          is-release-candidate: ${{ inputs.is-rc }}
+          push-tag: true
+
+  test-build:
+    runs-on: ubuntu-latest
+    if: inputs.semantic-version == "test-version"
+    steps:
+      - name: Build Test Version
+        uses: ./.github/workflows/wc-build-manager.yml
+        with:
+          version: ${{ inputs.version }}
+          build-number: ${{ github.run-number }}
+          environment: ${{ inputs.environment }}
+          flavor: ${{ inputs.flavor }}
+          platforms: ${{ inputs.plateform }}
+          build-type: ${{ inputs.build-version }}

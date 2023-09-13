@@ -1,0 +1,146 @@
+name: Build
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: Version (v#.#.#)
+        required: true
+        type: string
+
+        build-number:
+          description: Build number for the build
+          required: true
+          type: number
+
+        environment: # dev, stage, prod
+          description: Which environment to build for? dev, stage or prod?
+          required: true
+          type: string
+
+        flavor: # debug, profile, release
+          description: The build flavor, debug, profile or release?
+          required: true
+          type: string
+
+        sign-android:
+          description: Sign the Android build?
+          type: boolean
+          default: false
+
+        sign-ios:
+          description: Sign the IOS build?
+          type: boolean
+          default: false
+
+        platforms: # android, ios, all
+          description: The OS plateform, IOS or Android?
+          required: true
+          type: string
+
+        build-type: # apk, appbundle, ios --no-codesign, ipa
+          description: Type of the output package
+          required: true
+          type: string
+
+    secrets:
+      # Android signing requirements
+      UPLOAD_KEY:
+        type: string
+        required: true
+
+      KEY_ALIAS:
+        type: string
+        required: true
+
+      STORE_PASSWORD:
+        type: string
+        required: true
+
+      KEY_PASSWORD:
+        type: string
+        required: true
+
+      # IOS signing requirements
+
+jobs:
+  build-android:
+    name: Build Android
+    runs-on: ubuntu-latest
+    if: inputs.plateform == 'android' || inputs.plateform == 'all'
+    steps:
+      - name: Setup The Project
+        run: ./.github/workflows/common-setup.yml
+
+      - name: Create .env File
+        run: |
+          {
+            echo "${{ inputs.ENV_FILE }}"
+            echo APP_ENV=dev 
+          } >> .env
+
+      - name: Android Signing Setup
+        if: inputs.sign-android
+        run: |
+          source ./github/bash/helpers.sh
+
+          create_android_properties_file ${{env.UPLOAD_KEY}} \
+            ${{env.KEY_ALIAS}} \
+            ${{env.STORE_PASSWORD}} \
+            ${{env.KEY_PASSWORD}}
+
+        working-directory: android
+        env:
+          UPLOAD_KEY: ${{secrets.UPLOAD_KEY}}
+          KEY_ALIAS: ${{secrets.KEY_ALIAS}}
+          STORE_PASSWORD: ${{secrets.STORE_PASSWORD}}
+          KEY_PASSWORD: ${{secrets.KEY_PASSWORD}}
+
+      - name: Flutter Build
+        run: |
+          flutter build ${{ inputs.build-type }} \
+          --${{flavor}} \
+          --build-name=${{ inputs.version }} \
+          --build-number=${{ inputs.build-number }}
+
+      - name: Rename the Build
+        run: |
+          source ./github/bash/helpers.sh
+
+          flavor=${{ inputs.flavor }}
+          build_name="${{ env.REPO_NAME }}-${{ github.run_id }}-$flavor-${{ env.APP_VERSION }}+${{env.BUILD_NUMBER}}-${{ inputs.APP_ENV }}"
+
+          if [[ "$flavor" == "debug" ]]; then
+            mv build/app/outputs/flutter-apk/app-debug.apk app-debug.apk
+          else
+            move_build "$flavor" "$build_name" >> env.BUILD_EXT
+          fi
+
+      - name: Download the Build
+        uses: actions/upload-artifact@v3
+        with:
+          name: Build ${{ inputs.plateform }} (${{ inputs.APP_ENV }})
+          path: '${{ env.BUILD_EXT }}'
+
+  build-ios:
+    name: Build IOS
+    runs-on: macos-latest
+    if: inputs.plateform == 'ios' || inputs.plateform == 'all'
+    setps:
+      - name: IOS Signing
+        run:
+
+      - name: Flutter Build
+        run: |
+          flutter build ${{ inputs.build-type }} \
+          --${{flavor}} \
+          --build-name=${{ inputs.version }} \
+          --build-number=${{ inputs.build-number }}
+
+      - name: Rename the Build
+        run:
+
+      - name: Download the Build
+        uses: actions/upload-artifact@v3
+        with:
+          name: Build ${{ inputs.plateform }} (${{ inputs.APP_ENV }})
+          path: '${{ env.BUILD_EXT }}'

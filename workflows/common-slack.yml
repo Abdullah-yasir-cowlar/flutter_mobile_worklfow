@@ -1,0 +1,33 @@
+name: Slack Integrations
+
+steps:
+  - name: Send Slack notification
+    if: inputs.POST_SLACK == true
+    uses: slackapi/slack-github-action@v1.23.0
+    with:
+      channel-id: '${{ env.SLACK_CHANNEL_ID }}'
+      payload: |
+        {
+            "blocks": [
+                {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": "Build triggered by *${{ github.triggering_actor }}*"
+                }
+              }
+            ],
+            "attachments": [
+                {
+                  "pretext": "Latest (${{inputs.PLATEFORM}}) build for `${{ github.repository }}`",
+                  "color": "28a745",
+                  "fields": [
+                      {
+                        "title": "Use below link to download",
+                        "short": true,
+                        "value": "*<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|${{ env.APP_VERSION }}+${{ env.BUILD_NUMBER }} (${{ inputs.APP_ENV }})>*"
+                      }
+                  ]
+                }
+            ]
+        }

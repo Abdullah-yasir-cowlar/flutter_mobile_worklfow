@@ -1,0 +1,45 @@
+name: Tag release
+on:
+  push:
+    tags:
+      - 'refs/tags/*'
+
+jobs:
+  runs-on: ubuntu-latest
+  env:
+    VERSION_FILE: 'pubspec.yaml'
+
+  steps:
+    - name: Read Version from File
+      run: |
+        source ./github/bash/helpers.sh
+        echo FILE_VERSION=$(read_version_file env.VERSION_FILE) >> $GITHUB_ENV
+
+    - name: Validate Tag Version
+      run: |
+        tag_version=${GITHUB_REF#refs/tags/}
+        file_version=${{ env.FILE_VERSION }}
+
+        if ["$tag_version" != "$file_version"]; then
+          echo "Error: Current version in pubspec.yaml does not match the latest Git tag."
+        fi
+
+
+        source ./github/bash/helpers.sh
+
+        last_tag_version=$(get_last_tag)
+        current_tag_components=$(extract_version_components tag_version)
+
+        # Check if new tag is semantically correct when compared with last tag
+        compare_versions $(extract_version_components last_tag_version) $current_version_components
+
+        echo "TAG_VERSION=$tag_version" >> $GITHUB_ENV
+    - name: Create Build
+      uses: ./.github/workflows/wc-build-manager.yml
+      with:
+        version: ${{ env.TAG_VERSION }}
+        build-number:
+        environment: stage
+        flavor: release
+        platforms: android
+        build-type: apk
